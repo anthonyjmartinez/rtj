@@ -1,0 +1,16 @@
+[package]
+name = "rtj"
+version = "0.0.1"
+authors = ["Anthony J. Martinez <anthony@ajmartinez.com>"]
+edition = "2018"
+license = "GPL-3.0+"
+readme = "README.md"
+homepage = "https://gitlab.com/anthonyjmartinez/rtj"
+repository = "https://gitlab.com/anthonyjmartinez/rtj.git"
+description = "Run This Job, a generic job execution framework in Rust"
+keywords = ["network", "services", "api"]
+categories = ["network-programming"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
