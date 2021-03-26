@@ -1,12 +1,12 @@
 [package]
 name = "rtj"
-version = "0.0.1"
+version = "0.0.1+relicense"
 authors = ["Anthony J. Martinez <anthony@ajmartinez.com>"]
 edition = "2018"
-license = "GPL-3.0+"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
-homepage = "https://gitlab.com/anthonyjmartinez/rtj"
-repository = "https://gitlab.com/anthonyjmartinez/rtj.git"
+homepage = "https://git.staart.one/ajmartinez/rtj"
+repository = "https://git.staart.one/ajmartinez/rtj.git"
 description = "Run This Job, a generic job execution framework in Rust"
 keywords = ["network", "services", "api"]
 categories = ["network-programming"]
