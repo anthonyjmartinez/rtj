@@ -6,7 +6,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use crypto_box::{self, rand_core::{CryptoRng, RngCore}};
+use rand::{CryptoRng, RngCore};
 
 /// [`Header`] contains identifying information about the [`Message`]
 /// that follows. Specifically this contains the fields:
@@ -46,7 +46,7 @@ impl Header {
 	self
     }
 
-    /// Sets the value of [`Header.nonce`] using the specified csprng.
+    /// Sets the value of [`Header.nonce`] by generating one using the specified csprng.
     pub fn set_nonce<T: RngCore + CryptoRng>(mut self, csprng: &mut T) -> Result<Header, Box<dyn std::error::Error>> {
 	let mut nonce: [u8; 24] = [0u8; 24];
 	csprng.try_fill_bytes(&mut nonce)?;
@@ -56,27 +56,18 @@ impl Header {
 
     /// Returns [`Header`] as a byte array `[u8; 64]`.
     pub fn to_bytes(self) -> [u8; 64] {
-	let mut pos = 0;
 	let mut header_bytes = [0u8; 64];
-	header_bytes[pos] = self.msgtype;
-	pos += 1;
+	let reserved = [0u8; 3];
+	[self.msgtype].iter()
+	    .chain(self.psize.to_be_bytes().iter())
+	    .chain(self.pubkey.iter())
+	    .chain(self.nonce.iter())
+	    .chain(reserved.iter())
+	    .enumerate()
+	    .for_each(|(i, x)| header_bytes[i] = *x);
 
-	pos = copy_bytes_to_position(&self.psize.to_be_bytes(), &mut header_bytes, pos);
-	pos = copy_bytes_to_position(&self.pubkey, &mut header_bytes, pos);
-	let _pos = copy_bytes_to_position(&self.nonce, &mut header_bytes, pos);
-	
 	header_bytes
     }
-}
-
-fn copy_bytes_to_position(src: &[u8], dest: &mut [u8], position: usize) -> usize {
-    let mut position = position;
-    for b in src.iter() {
-	dest[position] = *b;
-	position += 1;
-    }
-
-    position
 }
 
 pub trait Message {
