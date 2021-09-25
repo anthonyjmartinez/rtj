@@ -4,7 +4,8 @@ A generic job execution framework in Rust
 
 ## About
 
-Project Placeholder, library coming soon!
+`rtj` aims to provide a generic but robust and secure framework for users to develop their own
+job execution applications.
 
 ### License
 
