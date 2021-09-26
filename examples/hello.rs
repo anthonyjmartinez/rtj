@@ -6,6 +6,25 @@ use serde::{Serialize, Deserialize};
 
 enum MsgType {
     Hello,
+    Unknown
+}
+
+impl From<u8> for MsgType {
+    fn from(t: u8) -> MsgType {
+	match t {
+	    0 => MsgType::Hello,
+	    _ => MsgType::Unknown,
+	}
+    }
+}
+
+impl From<MsgType> for u8 {
+    fn from(t: MsgType) -> u8 {
+	match t {
+	    MsgType::Hello => 0,
+	    MsgType::Unknown => 255,
+	}
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,8 +48,9 @@ impl Job for Hello {
 	Vec::from(ack_string)
     }
 
-    fn run(&self) -> Vec<u8> {
-	self.ack()
+    fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+	println!("{}", String::from_utf8(self.ack())?);
+	Ok(())
     }
 }
 
@@ -38,10 +58,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = rand::thread_rng();
 
     // Create the sender's keys
+    // This would normally be loaded from a secure location
     let send_secret = SecretKey::generate(&mut rng);
     let send_pub = send_secret.public_key().as_bytes().to_owned();
 
     // Create the recipient's keys
+    // This would normally exist on a remote node, and be loaded
+    // from a secure location. The sender should have a copy of
+    // the remote node's public key to encrypt towards.
     let recv_secret = SecretKey::generate(&mut rng);
 
     let name = "Anthony J. Martinez".to_owned();
@@ -52,23 +76,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Build a message that can be encrypted for the recipient
+    // The header contains the sender's public key and message
+    // nonce. The recipient will use these values along with
+    // their own private key to create the same crypto_box to
+    // decrypt the payload.
     let msg = Message::new()
         .set_payload(&hello)
-        .set_header(MsgType::Hello as u8,
+        .set_header(MsgType::Hello,
 		    send_pub,
 		    &mut rng)?;
 
-
+    // Encrypt the message payload for the recipient.
     if let Ok(encrypted_to_recv) = msg.encrypt(recv_secret.public_key(), send_secret) {
+	// Decrypt the message payload as the recipient
 	if let Ok(hello_again) = encrypted_to_recv.decrypt(recv_secret) {
-	    println!("{:?}", hello_again)
-	} else {
-	    println!("oops - failed decrypt")
+	    if let MsgType::Hello = hello_again.header.msgtype.into() {
+		let hello = Hello::decode(&hello_again.payload);
+		hello.run()?;
+	    }
 	}
-    } else {
-	println!("oops -failed encrypt")
     }
 
-    
     Ok(())
 }

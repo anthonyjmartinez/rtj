@@ -10,6 +10,8 @@ use crypto_box::{PublicKey, SecretKey , aead::{AeadMut, consts::U24, generic_arr
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
+// TODO: Crate specific errors.
+
 /// [`Header`] contains identifying information about the [`Job`]
 /// that follows.
 ///
@@ -18,12 +20,14 @@ use serde::{Deserialize, Serialize};
 /// - psize, the following payload size in bytes as: `u32`
 /// - pubkey, the crypto-box pubkey of the sender as: `[u8; 32]`
 /// - nonce, the message nonce as: `[u8; 24]`
+/// - encrypted, `bool` indicating the encryption status of the following payload.
 #[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Header {
-    msgtype: u8,
-    psize: u32,
-    pubkey: [u8; 32],
-    nonce: [u8; 24],
+    pub msgtype: u8,
+    pub psize: u32,
+    pub pubkey: [u8; 32],
+    pub nonce: [u8; 24],
+    pub encrypted: bool,
 }
 
 impl Header {
@@ -58,14 +62,21 @@ impl Header {
 	Ok(self)
     }
 
+    /// Sets the value of [`Header.encrypted`].
+    pub fn set_encrypted(mut self, encrypted: bool) -> Header {
+	self.encrypted = encrypted;
+	self
+    }
+
     /// Returns [`Header`] as a byte array `[u8; 64]`.
     pub fn to_bytes(self) -> [u8; 64] {
 	let mut header_bytes = [0u8; 64];
-	let reserved = [0u8; 3];
+	let reserved = [0u8; 2];
 	[self.msgtype].iter()
 	    .chain(self.psize.to_be_bytes().iter())
 	    .chain(self.pubkey.iter())
 	    .chain(self.nonce.iter())
+	    .chain([self.encrypted as u8].iter())
 	    .chain(reserved.iter())
 	    .enumerate()
 	    .for_each(|(i, x)| header_bytes[i] = *x);
@@ -83,14 +94,14 @@ pub trait Job {
     fn encode(&self) -> Vec<u8>;
     fn decode(input: &[u8]) -> Self;
     fn ack(&self) -> Vec<u8>;
-    fn run(&self) -> Vec<u8>;
+    fn run(&self) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 /// Provides a container for [`Header`] and Serialized and/or Encrypted [`Job`] payloads. 
 #[derive(Default, Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Message {
-    header: Header,
-    payload: Vec<u8> 
+    pub header: Header,
+    pub payload: Vec<u8> 
 }
 
 impl Message {
@@ -103,7 +114,13 @@ impl Message {
     ///
     /// This method can only be called after [`Message.payload`] has been set
     /// as the header itself contains the size of the payload in bytes.
-    pub fn set_header<T: Into<[u8; 32]>, U: RngCore + CryptoRng>(mut self, msgtype: u8, pubkey: T, csprng: &mut U) -> Result<Message, Box<dyn std::error::Error>> {
+    pub fn set_header<T: Into<u8>,
+		      U: Into<[u8; 32]>,
+		      V: RngCore + CryptoRng>(mut self,
+					      msgtype: T,
+					      pubkey: U,
+					      csprng: &mut V) ->
+	Result<Message, Box<dyn std::error::Error>> {
 	if self.payload.is_empty() {
 	    Err(From::from("Empty Payload. Cannot set header"))
 	} else {
@@ -126,13 +143,20 @@ impl Message {
 
     /// Encrypts and resets [`Message.payload`] using the specified [`SecretKey`]
     ///
+    /// The [`Header`] is updated to:
+    /// - Reflect the new payload length
+    /// - Set the encrypted flag
+    ///
     /// Payload is encrypted for the given pubkey.
     /// Encryption is done using crypto_box in its default configuration. 
     pub fn encrypt(mut self, public: PublicKey, secret: SecretKey) -> Result<Message, crypto_box::aead::Error> {
+	// TODO: Return an error if Message is already encrypted.
 	let mut msg_box = crypto_box::Box::new(&public, &secret);
 	let nonce: GenericArray<u8, U24> = self.header.nonce.into();
 	let encrypted_payload = msg_box.encrypt(&nonce, &self.payload[..])?;
 	self.payload = encrypted_payload;
+	self.header.set_encrypted(true);
+	self.header.set_psize(self.payload.len() as u32);
 	Ok(self)
     }
 
@@ -141,6 +165,7 @@ impl Message {
     /// Payload is decrypted for the pubkey specified in the [`Message.header`].
     /// Decrypted is done using crypto_box in its default configuration. 
     pub fn decrypt(mut self, secret: SecretKey) -> Result<Message, crypto_box::aead::Error> {
+	// TODO: Return an error is Message is not encrypted
 	let mut msg_box = crypto_box::Box::new(&self.header.pubkey.into(), &secret);
 	let nonce: GenericArray<u8, U24> = self.header.nonce.into();
 	let decrypted_payload = msg_box.decrypt(&nonce, &self.payload[..])?;
@@ -159,6 +184,25 @@ mod tests {
 
     enum MsgType {
 	Hello,
+	Unknown
+    }
+
+    impl From<u8> for MsgType {
+	fn from(t: u8) -> MsgType {
+	    match t {
+		0 => MsgType::Hello,
+		_ => MsgType::Unknown,
+	    }
+	}
+    }
+
+    impl From<MsgType> for u8 {
+	fn from(t: MsgType) -> u8 {
+	    match t {
+		MsgType::Hello => 0,
+		MsgType::Unknown => 255,
+	    }
+	}
     }
 
     #[derive(Default, Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -182,8 +226,9 @@ mod tests {
 	    Vec::from(ack_string)
 	}
 
-	fn run(&self) -> Vec<u8> {
-	    self.ack()
+	fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+	    self.ack();
+	    Ok(())
 	}
     }
 
@@ -195,12 +240,13 @@ mod tests {
 	assert_eq!(header.psize, 0u32);
 	assert_eq!(header.pubkey, [0u8; 32]);
 	assert_eq!(header.nonce, [0u8; 24]);
+	assert!(!header.encrypted);
     }
 
     #[test]
     fn test_header_msgtype() {
 	let header = Header::new()
-	    .set_msgtype(MsgType::Hello as u8);
+	    .set_msgtype(MsgType::Hello);
 
 	assert_eq!(header.msgtype, 0u8)
     }
@@ -234,12 +280,19 @@ mod tests {
     }
 
     #[test]
+    fn test_header_encrypted() {
+	let header = Header::new()
+	    .set_encrypted(true);
+
+	assert!(header.encrypted)
+    }
+    #[test]
     fn test_header_bytes() {
 	let mut rng = rand::thread_rng();
 	let secret_key = crypto_box::SecretKey::generate(&mut rng);
 	let pubkey = secret_key.public_key().as_bytes().to_owned();
 	let header = Header::new()
-	    .set_msgtype(MsgType::Hello as u8)
+	    .set_msgtype(MsgType::Hello)
 	    .set_psize(10u32)
 	    .set_pubkey(pubkey)
 	    .set_nonce(&mut rng).unwrap();
@@ -248,7 +301,8 @@ mod tests {
 	assert_eq!(header_bytes[..5], [0, 0, 0, 0, 10]);
 	assert_eq!(header_bytes[5..37], pubkey);
 	assert_ne!(header_bytes[37..61], [0u8; 24]);
-	assert_eq!(header_bytes[61..], [0u8; 3]);
+	assert_eq!(header_bytes[61], 0u8);
+	assert_eq!(header_bytes[62..], [0u8; 2]);
     }
 
     #[test]
@@ -265,15 +319,25 @@ mod tests {
     }
 
     #[test]
-    fn test_job_ack_run() {
+    fn test_job_ack() {
 	let hello = Hello {
 	    name: "Anthony J. Martinez".to_owned(),
 	    age: 38,
 	};
 
-	let hello_vec = hello.run();
+	let hello_vec = hello.ack();
 
 	assert_eq!(hello_vec, Vec::from("Hello from Anthony J. Martinez, aged 38"))
+    }
+
+    #[test]
+    fn test_job_run() {
+	let hello = Hello {
+	    name: "Anthony J. Martinez".to_owned(),
+	    age: 38,
+	};
+
+	assert!(hello.run().is_ok())
     }
 
     #[test]
@@ -313,7 +377,7 @@ mod tests {
 	let msg = Message::new()
 	    .set_payload(&hello);
 
-	assert!(msg.set_header(MsgType::Hello as u8, pubkey, &mut rng).is_ok())
+	assert!(msg.set_header(MsgType::Hello, pubkey, &mut rng).is_ok())
 
     }
 
@@ -332,7 +396,7 @@ mod tests {
 
 	let msg = Message::new()
 	    .set_payload(&hello)
-	    .set_header(MsgType::Hello as u8, bob_pubkey, &mut rng).unwrap();
+	    .set_header(MsgType::Hello, bob_pubkey, &mut rng).unwrap();
 
 	let payload = msg.payload.clone();
 
