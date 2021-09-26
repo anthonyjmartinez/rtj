@@ -6,7 +6,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use crypto_box::{SecretKey, aead::{AeadMut, consts::U24, generic_array::GenericArray}};
+use crypto_box::{PublicKey, SecretKey , aead::{AeadMut, consts::U24, generic_array::GenericArray}};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
@@ -126,10 +126,10 @@ impl Message {
 
     /// Encrypts and resets [`Message.payload`] using the specified [`SecretKey`]
     ///
-    /// Payload is encrypted for the pubkey specified in the [`Message.header`].
+    /// Payload is encrypted for the given pubkey.
     /// Encryption is done using crypto_box in its default configuration. 
-    pub fn encrypt(mut self, secret: SecretKey) -> Result<Message, crypto_box::aead::Error> {
-	let mut msg_box = crypto_box::Box::new(&self.header.pubkey.into(), &secret);
+    pub fn encrypt(mut self, public: PublicKey, secret: SecretKey) -> Result<Message, crypto_box::aead::Error> {
+	let mut msg_box = crypto_box::Box::new(&public, &secret);
 	let nonce: GenericArray<u8, U24> = self.header.nonce.into();
 	let encrypted_payload = msg_box.encrypt(&nonce, &self.payload[..])?;
 	self.payload = encrypted_payload;
@@ -321,8 +321,9 @@ mod tests {
     fn test_message_encrypt_decrypt() {
 	let mut rng = rand::thread_rng();
 	let bob_key = crypto_box::SecretKey::generate(&mut rng);
-	let bob2 = bob_key.clone();
 	let bob_pubkey = bob_key.public_key().as_bytes().to_owned();
+	let alice_key = crypto_box::SecretKey::generate(&mut rng);
+	let alice_pubkey = alice_key.public_key().as_bytes().to_owned();
 
 	let hello = Hello {
 	    name: "Anthony J. Martinez".to_owned(),
@@ -335,8 +336,8 @@ mod tests {
 
 	let payload = msg.payload.clone();
 
-	let encrypt_to_bob = msg.encrypt(bob_key).unwrap();
-	let decrypted = encrypt_to_bob.decrypt(bob2).unwrap();
+	let encrypt_to_bob = msg.encrypt(PublicKey::from(alice_pubkey), bob_key).unwrap();
+	let decrypted = encrypt_to_bob.decrypt(alice_key).unwrap();
 
 	assert_eq!(payload, decrypted.payload)
     }
