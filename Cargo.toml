@@ -1,6 +1,6 @@
 [package]
 name = "rtj"
-version = "0.0.1+relicense"
+version = "0.1.0"
 authors = ["Anthony J. Martinez <anthony@ajmartinez.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -16,5 +16,7 @@ categories = ["network-programming"]
 [dependencies]
 crypto_box = "0.7"
 rand = "0.8"
-rmp-serde = "0.15"
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+rmp-serde = "0.15"

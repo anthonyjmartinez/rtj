@@ -6,13 +6,15 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use crypto_box::{SecretKey, aead::{AeadMut, consts::U24, generic_array::GenericArray}};
 use rand::{CryptoRng, RngCore};
-use rmp_serde as rmps;
 use serde::{Deserialize, Serialize};
 
-/// [`Header`] contains identifying information about the [`Message`]
-/// that follows. Specifically this contains the fields:
-/// - msgtype, the [`Message`] type: `u8`
+/// [`Header`] contains identifying information about the [`Job`]
+/// that follows.
+///
+/// Specifically this contains the fields:
+/// - msgtype, the [`Job`] type: `u8`
 /// - psize, the following payload size in bytes as: `u32`
 /// - pubkey, the crypto-box pubkey of the sender as: `[u8; 32]`
 /// - nonce, the message nonce as: `[u8; 24]`
@@ -72,6 +74,11 @@ impl Header {
     }
 }
 
+/// The core trait [`Job`] providing required methods to user-defined data types for
+/// orchestrating task execution.
+///
+/// It is left to the implementor to ensure these methods do not panic or that errors
+/// are handled as they see fit.
 pub trait Job {
     fn encode(&self) -> Vec<u8>;
     fn decode(input: &[u8]) -> Self;
@@ -79,42 +86,79 @@ pub trait Job {
     fn run(&self) -> Vec<u8>;
 }
 
-/*
-
-TODO: Complete Message implementation considering security and a clear process
-for getting private keys loaded to memory from a TPM or HSM.
-
-Need to also provide a simple store for target pubkeys - though it's possible
-this should be a generic interface for flexibility. Provide another trait
-and use this to define methods used to get keys from wherever it is you choose
-to get them.
-
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct Message<T: Job> {
+/// Provides a container for [`Header`] and Serialized and/or Encrypted [`Job`] payloads. 
+#[derive(Default, Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Message {
     header: Header,
-    payload: T 
+    payload: Vec<u8> 
 }
 
-impl<T: Job> Message<T> {
-    pub fn new(msgtype: u8, payload: T) -> Message<T> {
-    }
-    
-    pub fn encrypt(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-
+impl Message {
+    /// Creates a new [`Message`] with default values
+    pub fn new() -> Message {
+	Message::default()
     }
 
-    pub fn decrypt(&self) -> Result<T, Box<dyn std::error::Error>> {
+    /// Sets the [`Message.header`]
+    ///
+    /// This method can only be called after [`Message.payload`] has been set
+    /// as the header itself contains the size of the payload in bytes.
+    pub fn set_header<T: Into<[u8; 32]>, U: RngCore + CryptoRng>(mut self, msgtype: u8, pubkey: T, csprng: &mut U) -> Result<Message, Box<dyn std::error::Error>> {
+	if self.payload.is_empty() {
+	    Err(From::from("Empty Payload. Cannot set header"))
+	} else {
+	    let header = Header::new()
+		.set_msgtype(msgtype)
+		.set_psize(self.payload.len() as u32)
+		.set_pubkey(pubkey.into())
+		.set_nonce(csprng)?;
 
+	    self.header = header;
+	    Ok(self)
+	}
     }
+  
+    /// Sets the [`Message.payload`] from some `&T` where T impl [`Job`].
+    pub fn set_payload<T: Job>(mut self, payload: &T) -> Message {
+	self.payload = payload.encode();
+	self
+    }
+
+    /// Encrypts and resets [`Message.payload`] using the specified [`SecretKey`]
+    ///
+    /// Payload is encrypted for the pubkey specified in the [`Message.header`].
+    /// Encryption is done using crypto_box in its default configuration. 
+    pub fn encrypt(mut self, secret: SecretKey) -> Result<Message, crypto_box::aead::Error> {
+	let mut msg_box = crypto_box::Box::new(&self.header.pubkey.into(), &secret);
+	let nonce: GenericArray<u8, U24> = self.header.nonce.into();
+	let encrypted_payload = msg_box.encrypt(&nonce, &self.payload[..])?;
+	self.payload = encrypted_payload;
+	Ok(self)
+    }
+
+    /// Decrypts and resets [`Message.payload`] using the specified [`SecretKey`]
+    ///
+    /// Payload is decrypted for the pubkey specified in the [`Message.header`].
+    /// Decrypted is done using crypto_box in its default configuration. 
+    pub fn decrypt(mut self, secret: SecretKey) -> Result<Message, crypto_box::aead::Error> {
+	let mut msg_box = crypto_box::Box::new(&self.header.pubkey.into(), &secret);
+	let nonce: GenericArray<u8, U24> = self.header.nonce.into();
+	let decrypted_payload = msg_box.decrypt(&nonce, &self.payload[..])?;
+	self.payload = decrypted_payload;
+	Ok(self)
+    }
+
 }
-*/
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // Testing with Rust MessagePack implementation for Serialization/Deserialization
+    use rmp_serde as rmps;
+
     enum MsgType {
-	Basic,
+	Hello,
     }
 
     #[derive(Default, Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -156,7 +200,7 @@ mod tests {
     #[test]
     fn test_header_msgtype() {
 	let header = Header::new()
-	    .set_msgtype(MsgType::Basic as u8);
+	    .set_msgtype(MsgType::Hello as u8);
 
 	assert_eq!(header.msgtype, 0u8)
     }
@@ -195,7 +239,7 @@ mod tests {
 	let secret_key = crypto_box::SecretKey::generate(&mut rng);
 	let pubkey = secret_key.public_key().as_bytes().to_owned();
 	let header = Header::new()
-	    .set_msgtype(MsgType::Basic as u8)
+	    .set_msgtype(MsgType::Hello as u8)
 	    .set_psize(10u32)
 	    .set_pubkey(pubkey)
 	    .set_nonce(&mut rng).unwrap();
@@ -215,7 +259,7 @@ mod tests {
 	};
 
 	let encoded = hello.encode();
-	let decoded: Hello = Hello::decode(&encoded);
+	let decoded = Hello::decode(&encoded);
 
 	assert_eq!(hello, decoded)
     }
@@ -234,16 +278,66 @@ mod tests {
 
     #[test]
     fn test_message_new() {
-	unreachable!()
+	let msg = Message::new();
+	let ref_msg = Message {
+	    header: Header::new(),
+	    payload: Vec::default()
+	};
+
+	assert_eq!(msg, ref_msg)
     }
 
     #[test]
-    fn test_message_encrypt() {
-	unreachable!()
+    fn test_message_set_payload() {
+	let hello = Hello {
+	    name: "Anthony J. Martinez".to_owned(),
+	    age: 38,
+	};
+
+	let msg = Message::new()
+	    .set_payload(&hello);
+
+	assert_eq!(msg.payload, hello.encode())
     }
 
     #[test]
-    fn test_message_decrypt() {
-	unreachable!()
+    fn test_message_set_header() {
+	let mut rng = rand::thread_rng();
+	let secret_key = crypto_box::SecretKey::generate(&mut rng);
+	let pubkey = secret_key.public_key().as_bytes().to_owned();
+	let hello = Hello {
+	    name: "Anthony J. Martinez".to_owned(),
+	    age: 38,
+	};
+
+	let msg = Message::new()
+	    .set_payload(&hello);
+
+	assert!(msg.set_header(MsgType::Hello as u8, pubkey, &mut rng).is_ok())
+
+    }
+
+    #[test]
+    fn test_message_encrypt_decrypt() {
+	let mut rng = rand::thread_rng();
+	let bob_key = crypto_box::SecretKey::generate(&mut rng);
+	let bob2 = bob_key.clone();
+	let bob_pubkey = bob_key.public_key().as_bytes().to_owned();
+
+	let hello = Hello {
+	    name: "Anthony J. Martinez".to_owned(),
+	    age: 38,
+	};
+
+	let msg = Message::new()
+	    .set_payload(&hello)
+	    .set_header(MsgType::Hello as u8, bob_pubkey, &mut rng).unwrap();
+
+	let payload = msg.payload.clone();
+
+	let encrypt_to_bob = msg.encrypt(bob_key).unwrap();
+	let decrypted = encrypt_to_bob.decrypt(bob2).unwrap();
+
+	assert_eq!(payload, decrypted.payload)
     }
 }
