@@ -15,7 +15,7 @@ options available.
 
 ### Example
 
-A typical "Hello" [example](/examples/hello.rs) that itself uses all defined methods can be run by cloning this repository,
+A typical "Hello" [example](./examples/hello.rs) that itself uses all defined methods can be run by cloning this repository,
 and running `cargo run --example hello`
 
 ### License
