@@ -2,28 +2,30 @@ use rtj::{Job, Message};
 
 use crypto_box::SecretKey;
 use rmp_serde as rmps;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 enum MsgType {
     Hello,
-    Unknown
+    Unknown,
 }
 
 impl From<u8> for MsgType {
     fn from(t: u8) -> MsgType {
-	match t {
-	    0 => MsgType::Hello,
-	    _ => MsgType::Unknown,
-	}
+        match t {
+            0 => MsgType::Hello,
+            _ => MsgType::Unknown,
+        }
     }
 }
 
 impl From<MsgType> for u8 {
     fn from(t: MsgType) -> u8 {
-	match t {
-	    MsgType::Hello => 0,
-	    MsgType::Unknown => 255,
-	}
+        match t {
+            MsgType::Hello => 0,
+            MsgType::Unknown => 255,
+        }
     }
 }
 
@@ -35,26 +37,26 @@ struct Hello {
 
 impl Job for Hello {
     fn encode(&self) -> Vec<u8> {
-	rmps::to_vec(&self).unwrap()
+        rmps::to_vec(&self).unwrap()
     }
 
     fn decode(input: &[u8]) -> Hello {
-	let hello: Hello = rmps::from_read(input).unwrap();
-	hello
+        let hello: Hello = rmps::from_read(input).unwrap();
+        hello
     }
 
     fn ack(&self) -> Vec<u8> {
-	let ack_string = format!("Hello from {}, aged {}", self.name, self.age);
-	Vec::from(ack_string)
+        let ack_string = format!("Hello from {}, age {}", self.name, self.age);
+        Vec::from(ack_string)
     }
 
-    fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
-	println!("{}", String::from_utf8(self.ack())?);
-	Ok(())
+    fn run(&self) -> Result<()> {
+        println!("{}", String::from_utf8(self.ack())?);
+        Ok(())
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let mut rng = rand::thread_rng();
 
     // Create the sender's keys
@@ -70,10 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let name = "Anthony J. Martinez".to_owned();
     let age = 38;
-    let hello = Hello {
-	name,
-	age,
-    };
+    let hello = Hello { name, age };
 
     // Build a message that can be encrypted for the recipient
     // The header contains the sender's public key and message
@@ -82,19 +81,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // decrypt the payload.
     let msg = Message::new()
         .set_payload(&hello)
-        .set_header(MsgType::Hello,
-		    send_pub,
-		    &mut rng)?;
+        .set_header(MsgType::Hello, send_pub, &mut rng)?;
 
     // Encrypt the message payload for the recipient.
-    if let Ok(encrypted_to_recv) = msg.encrypt(recv_secret.public_key(), send_secret) {
-	// Decrypt the message payload as the recipient
-	if let Ok(hello_again) = encrypted_to_recv.decrypt(recv_secret) {
-	    if let MsgType::Hello = hello_again.header.msgtype.into() {
-		let hello = Hello::decode(&hello_again.payload);
-		hello.run()?;
-	    }
-	}
+    let encrypted_to_recv = msg.encrypt(recv_secret.public_key(), send_secret)?;
+
+    // Decrypt the message payload as the recipient.
+    let hello_again = encrypted_to_recv.decrypt(recv_secret)?;
+
+    // Verify the message type.
+    if let MsgType::Hello = hello_again.header.msgtype.into() {
+        // Deserialize the message payload as the correct type
+        let hello = Hello::decode(&hello_again.payload);
+
+        // Execute the runner method on the deserialized type
+        hello.run()?;
     }
 
     Ok(())

@@ -7,6 +7,17 @@ A generic job execution framework in Rust
 `rtj` aims to provide a generic but robust and secure framework for users to develop their own
 job execution applications.
 
+Encryption tasks are left to [crypto_box](https://crates.io/crates/crypto_box), and are therefore
+compatible with other implementations of the [standard](https://doc.libsodium.org/public-key_cryptography/authenticated_encryption).
+
+Transfer of message bytes is up to the user, but as all data end up serialized to arrays or vectors of u8 there are near limitless
+options available.
+
+### Example
+
+A typical "Hello" [example](/examples/hello.rs) that itself uses all defined methods can be run by cloning this repository,
+and running `cargo run --example hello`
+
 ### License
 
 Licensed under either of
