@@ -35,6 +35,6 @@ additional terms or conditions.
 
 ### Contact
 
-To discuss features, offer assistance, or get help plese join the project's [Matrix room](https://matrix.to/#/#software-projects-staart-one:txrx.staart.one).
+To discuss features, offer assistance, or get help plese join the project's [Matrix room](https://matrix.to/#/#rtj:txrx.staart.one).
 
 Copyright (C) 2021 Anthony Martinez
