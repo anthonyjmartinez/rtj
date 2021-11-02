@@ -1,8 +1,8 @@
 [package]
 name = "rtj"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Anthony J. Martinez <anthony@ajmartinez.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 homepage = "https://git.staart.one/ajmartinez/rtj"
