@@ -1,3 +1,11 @@
+// rtj provides a generic job execution framework in Rust
+// Copyright 2021-2022 Anthony Martinez
+//
+// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
+// http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
+// http://opensource.org/licenses/MIT>, at your option. This file may not be
+// copied, modified, or distributed except according to those terms.use rtj::{Job, Message};
+
 use rtj::{Job, Message};
 
 use crypto_box::SecretKey;
@@ -51,7 +59,8 @@ impl Job for Hello {
     }
 
     fn run(&self) -> Result<()> {
-        println!("{}", String::from_utf8(self.ack())?);
+	let ack_string = String::from_utf8(self.ack())?;
+	println!("{ack_string}");
         Ok(())
     }
 }

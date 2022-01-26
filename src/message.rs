@@ -1,5 +1,5 @@
 // rtj provides a generic job execution framework in Rust
-// Copyright 2021 Anthony Martinez
+// Copyright 2021-2022 Anthony Martinez
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
@@ -147,7 +147,9 @@ mod tests {
         }
 
         fn ack(&self) -> Vec<u8> {
-            let ack_string = format!("Hello from {}, aged {}", self.name, self.age);
+	    let name = &self.name;
+	    let age = &self.age;
+	    let ack_string = format!("Hello from {name}, aged {age}");
             Vec::from(ack_string)
         }
 

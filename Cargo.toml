@@ -1,6 +1,6 @@
 [package]
 name = "rtj"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Anthony J. Martinez <anthony@ajmartinez.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -19,4 +19,4 @@ rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-rmp-serde = "0.15"
+rmp-serde = "1"

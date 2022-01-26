@@ -18,6 +18,10 @@ options available.
 A typical "Hello" [example](https://git.staart.one/rtj/src/branch/main/examples/hello.rs) that itself uses all defined methods can be run by cloning this repository,
 and running `cargo run --example hello`
 
+### MSRV
+
+This crate uses format strings as introduced in Rust 1.58, which is thus the Minimum Supported Rust Version.
+
 ### License
 
 Licensed under either of
@@ -37,4 +41,4 @@ additional terms or conditions.
 
 To discuss features, offer assistance, or get help plese join the project's [Matrix room](https://matrix.to/#/#rtj:txrx.staart.one).
 
-Copyright (C) 2021 Anthony Martinez
+Copyright (C) 2021-2022 Anthony Martinez
