@@ -1,5 +1,5 @@
 // rtj provides a generic job execution framework in Rust
-// Copyright 2021-2022 Anthony Martinez
+// Copyright 2021-2024 Anthony Martinez
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or

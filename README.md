@@ -15,7 +15,7 @@ options available.
 
 ### Example
 
-A typical "Hello" [example](https://git.staart.one/rtj/src/branch/main/examples/hello.rs) that itself uses all defined methods can be run by cloning this repository,
+A typical "Hello" [example](https://github.com/anthonyjmartinez/rtj/blob/main/examples/hello.rs) that itself uses all defined methods can be run by cloning this repository,
 and running `cargo run --example hello`
 
 ### MSRV
@@ -37,8 +37,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
 additional terms or conditions.
 
-### Contact
-
-To discuss features, offer assistance, or get help plese join the project's [Matrix room](https://matrix.to/#/#rtj:txrx.staart.one).
-
-Copyright (C) 2021-2022 Anthony Martinez
+Copyright (C) 2021-2024 Anthony Martinez
